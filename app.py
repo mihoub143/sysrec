@@ -93,6 +93,20 @@ st.markdown("""
     }
     .stat-box .num { font-size: 2rem; font-weight: 800; color: #0f3460; }
     .stat-box .lbl { font-size: 0.8rem; color: #888; font-weight: 600; }
+
+    .rating-stars { color: #f1c40f; font-size: 1.1rem; margin-right: 5px; }
+    .rating-value { font-weight: 700; color: #1a1a2e; font-size: 0.95rem; }
+    .rating-count { color: #888; font-size: 0.8rem; margin-left: 4px; }
+    .rating-container { margin-bottom: 12px; display: flex; align-items: center; }
+
+    .card-img {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 12px;
+        margin-bottom: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -120,12 +134,50 @@ def load_data(db_url):
 
 df_pdt, df_users, df_notes, is_connected = load_data(DATABASE_URL)
 
+if is_connected and not df_pdt.empty:
+    # Calcul des notes moyennes et nombre d'avis
+    stats = df_notes.groupby('idproduit')['note'].agg(['mean', 'count']).reset_index()
+    stats.columns = ['id', 'avg_note', 'nb_avis']
+    df_pdt = pd.merge(df_pdt, stats, on='id', how='left')
+    df_pdt['avg_note'] = df_pdt['avg_note'].fillna(0)
+    df_pdt['nb_avis'] = df_pdt['nb_avis'].fillna(0).astype(int)
+
+def get_star_rating(rating):
+    full_stars = int(rating)
+    half_star = "½" if (rating - full_stars) >= 0.5 else ""
+    return "★" * full_stars + half_star
+
+# ── Mapping des images ──────────────────────────────────────────────────────
+PRODUCT_IMAGES = {
+    1: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=800&q=80", # Boukornine
+    2: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80", # Kasserine
+    3: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23", # Zaghouan
+    4: "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7", # Ain Draham (Camping)
+    5: "https://images.unsplash.com/photo-1511497584788-876760111969", # Beja
+    6: "https://images.unsplash.com/photo-1544551763-46a013bb70d5", # Sidi Bou Said (Water sport)
+    7: "https://images.unsplash.com/photo-1544551763-46a013bb70d5", # Tabarka
+    8: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4", # Sousse
+    9: "https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5", # Djerba
+    10: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e", # Hammamet
+    11: "https://images.unsplash.com/photo-1509316785289-025f5b846b35", # Douz
+    12: "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a", # Ksar Ghilane
+    13: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722", # Tozeur
+    14: "https://images.unsplash.com/photo-1520110120835-c96a9ef9569d", # Quad
+    15: "https://images.unsplash.com/photo-1525498128493-380d1990a112", # Poterie
+    16: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c", # Medina
+    17: "https://images.unsplash.com/photo-1580983231362-cc91c337c768", # Carthage
+    18: "https://images.unsplash.com/photo-1541518763669-27fef04b14ea", # Cuisine
+    19: "https://images.unsplash.com/photo-1553531384-397c80973a0b", # Matmata
+    20: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b", # Djebel Ressas
+}
+
 if not is_connected or df_pdt.empty:
     st.error("Impossible de se connecter a la base PostgreSQL. Verifiez les parametres.")
     st.stop()
 
 # ── Algorithmes ──────────────────────────────────────────────────────────────
-def get_content_based(user_id):
+@st.cache_data
+def compute_similarity_matrix(df_pdt):
     stemmer    = FrenchStemmer()
     stop_words = set(stopwords.words('french'))
     dictProduits, TotaliteMots = {}, set()
@@ -151,6 +203,11 @@ def get_content_based(user_id):
     for i in range(len(pdt_ids)):
         for j in range(len(pdt_ids)):
             sim[i][j] = cos(mat[i], mat[j])
+            
+    return sim, pdt_ids
+
+def get_content_based(user_id):
+    sim, pdt_ids = compute_similarity_matrix(df_pdt)
 
     user_r   = df_notes[df_notes['iduser'] == user_id]
     top_pdts = user_r[user_r['note'] >= 4]['idproduit'].tolist() or user_r['idproduit'].tolist()[:1]
@@ -205,6 +262,11 @@ def get_hybrid(user_id):
     h['time_score'] = np.where(
         h['saison'].str.contains("Hiver") | (h['saison'] == 'Toutes'),
         h['time_score'] * 1.5, h['time_score'])
+
+    # On s'assure qu'aucun score ne dépasse 1.0 (100%) après le bonus de saison
+    h['cb_score'] = h['cb_score'].clip(upper=1.0)
+    h['cf_score'] = h['cf_score'].clip(upper=1.0)
+    h['time_score'] = h['time_score'].clip(upper=1.0)
 
     h['final_score'] = h['cb_score'] * 0.4 + h['cf_score'] * 0.4 + h['time_score'] * 0.2
     rated = df_notes[df_notes['iduser'] == user_id]['idproduit'].tolist()
@@ -283,11 +345,28 @@ else:
             <div class="score-bar-wrap"><div class="score-bar-fill" style="width:{ta}%;background:#e67e22;"></div></div>
         </div>"""
 
+        rating_stars = get_star_rating(row.avg_note)
+        rating_html = f"""
+        <div class="rating-container">
+            <span class="rating-stars">{rating_stars}</span>
+            <span class="rating-value">{row.avg_note:.1f}</span>
+            <span class="rating-count">({row.nb_avis} avis)</span>
+        </div>"""
+
+        # Recherche d'image ultra-robuste (ID int, ID str, ou Nom exact)
+        pid = row.id
+        nom = row.nompdt
+        
+        img_url = PRODUCT_IMAGES.get(int(row.id), "https://images.unsplash.com/photo-1506744038136-46273834b3fb")
+        img_url += "?auto=format&fit=crop&w=600&h=400&q=80"
+
         with cols[idx % 3]:
             st.markdown(f"""
             <div class="card">
+                <img src="{img_url}" class="card-img">
                 <h4>{row.nompdt}</h4>
                 <div class="meta"><b>Categorie :</b> {row.categorie} &nbsp;|&nbsp; <b>Effort :</b> {row.effort}</div>
+                {rating_html}
                 {tags_html}
                 {score_bars}
                 <div class="explanation">{explication}</div>
