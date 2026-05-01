@@ -14,7 +14,17 @@ try:
 except Exception:
     pass
 
-st.set_page_config(page_title="Moteur de Recommandation", page_icon="🎯", layout="wide")
+import base64
+
+# Lire et encoder le logo en base64
+with open("logo-nav.svg", "rb") as f:
+    logo_b64 = base64.b64encode(f.read()).decode()
+
+st.set_page_config(
+    page_title="Moteur de Recommandation",
+    page_icon=f"data:image/svg+xml;base64,{logo_b64}",
+    layout="wide"
+)
 
 # On injectera le CSS plus bas après avoir déterminé le thème
 
@@ -61,26 +71,26 @@ def get_star_rating(rating):
 
 # ── Mapping des images ──────────────────────────────────────────────────────
 PRODUCT_IMAGES = {
-    1: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=800&q=80", # Boukornine
-    2: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80", # Kasserine
-    3: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23", # Zaghouan
-    4: "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7", # Ain Draham (Camping)
-    5: "https://images.unsplash.com/photo-1511497584788-876760111969", # Beja
-    6: "https://images.unsplash.com/photo-1544551763-46a013bb70d5", # Sidi Bou Said (Water sport)
-    7: "https://images.unsplash.com/photo-1544551763-46a013bb70d5", # Tabarka
-    8: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4", # Sousse
-    9: "https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5", # Djerba
-    10: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e", # Hammamet
-    11: "https://images.unsplash.com/photo-1509316785289-025f5b846b35", # Douz
-    12: "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a", # Ksar Ghilane
-    13: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722", # Tozeur
-    14: "https://images.unsplash.com/photo-1520110120835-c96a9ef9569d", # Quad
-    15: "https://images.unsplash.com/photo-1525498128493-380d1990a112", # Poterie
-    16: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c", # Medina
-    17: "https://images.unsplash.com/photo-1580983231362-cc91c337c768", # Carthage
-    18: "https://images.unsplash.com/photo-1541518763669-27fef04b14ea", # Cuisine
-    19: "https://images.unsplash.com/photo-1553531384-397c80973a0b", # Matmata
-    20: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b", # Djebel Ressas
+    1: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=800&q=80",
+    2: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80",
+    3: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23",
+    4: "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7",
+    5: "https://images.unsplash.com/photo-1511497584788-876760111969",
+    6: "https://images.unsplash.com/photo-1544551763-46a013bb70d5",
+    7: "https://images.unsplash.com/photo-1544551763-46a013bb70d5",
+    8: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4",
+    9: "https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5",
+    10: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
+    11: "https://images.unsplash.com/photo-1509316785289-025f5b846b35",
+    12: "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a",
+    13: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722",
+    14: "https://images.unsplash.com/photo-1520110120835-c96a9ef9569d",
+    15: "https://images.unsplash.com/photo-1525498128493-380d1990a112",
+    16: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c",
+    17: "https://images.unsplash.com/photo-1580983231362-cc91c337c768",
+    18: "https://images.unsplash.com/photo-1541518763669-27fef04b14ea",
+    19: "https://images.unsplash.com/photo-1553531384-397c80973a0b",
+    20: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b",
 }
 
 if not is_connected or df_pdt.empty:
@@ -120,15 +130,12 @@ def compute_similarity_matrix(df_pdt):
 
 def get_content_based(user_id):
     sim, pdt_ids = compute_similarity_matrix(df_pdt)
-
     user_r   = df_notes[df_notes['iduser'] == user_id]
     top_pdts = user_r[user_r['note'] >= 4]['idproduit'].tolist() or user_r['idproduit'].tolist()[:1]
     if not top_pdts: return pd.DataFrame()
-
     scores = np.zeros(len(pdt_ids))
     for p in top_pdts:
         if p in pdt_ids: scores += sim[pdt_ids.index(p)]
-
     res = pd.DataFrame({'id': pdt_ids, 'cb_score': scores})
     return res[~res['id'].isin(user_r['idproduit'].tolist())]
 
@@ -175,27 +182,101 @@ def get_hybrid(user_id):
         h['saison'].str.contains("Hiver") | (h['saison'] == 'Toutes'),
         h['time_score'] * 1.5, h['time_score'])
 
-    # On s'assure qu'aucun score ne dépasse 1.0 (100%) après le bonus de saison
-    h['cb_score'] = h['cb_score'].clip(upper=1.0)
-    h['cf_score'] = h['cf_score'].clip(upper=1.0)
+    h['cb_score']   = h['cb_score'].clip(upper=1.0)
+    h['cf_score']   = h['cf_score'].clip(upper=1.0)
     h['time_score'] = h['time_score'].clip(upper=1.0)
 
     h['final_score'] = h['cb_score'] * 0.4 + h['cf_score'] * 0.4 + h['time_score'] * 0.2
     rated = df_notes[df_notes['iduser'] == user_id]['idproduit'].tolist()
     return h[~h['id'].isin(rated)].sort_values('final_score', ascending=False).head(6)
 
-# ── Hero Header ──────────────────────────────────────────────────────────────
+# ── Hero Header — CSS hero uniquement (ne touche pas au reste) ───────────────
 st.markdown("""
-<div class="hero">
-    <div>
-        <span class="badge">Content-Based</span>
-        <span class="badge">Collaboratif</span>
-        <span class="badge">Time-Aware</span>
-        <span class="badge">Hybride</span>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+.hero-banner {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+    border-radius: 20px;
+    padding: 52px 56px;
+    margin-bottom: 40px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.hero-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse 60% 80% at 85% 20%, rgba(52,152,219,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 40% 60% at 10% 80%, rgba(15,52,96,0.20) 0%, transparent 60%);
+    pointer-events: none;
+}
+.hero-banner::after {
+    content: 'تونس';
+    position: absolute;
+    right: 48px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'DM Serif Display', serif;
+    font-size: 8rem;
+    color: rgba(255,255,255,0.04);
+    line-height: 1;
+    pointer-events: none;
+}
+.hero-eyebrow {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    position: relative;
+    flex-wrap: wrap;
+}
+.hero-pill {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.70);
+    padding: 4px 14px;
+    border-radius: 100px;
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    font-family: 'DM Sans', sans-serif;
+}
+.hero-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.6rem;
+    color: #FEFCE8;
+    line-height: 1.15;
+    margin: 0 0 14px 0;
+    position: relative;
+}
+.hero-title em {
+    font-style: italic;
+    color: #5dade2;
+}
+.hero-sub {
+    color: rgba(255,255,255,0.52);
+    font-size: 0.95rem;
+    font-weight: 300;
+    line-height: 1.75;
+    max-width: 540px;
+    margin: 0;
+    position: relative;
+    font-family: 'DM Sans', sans-serif;
+}
+</style>
+
+<div class="hero-banner">
+    <div class="hero-eyebrow">
+        <span class="hero-pill">Content-Based</span>
+        <span class="hero-pill">Collaboratif</span>
+        <span class="hero-pill">Time-Aware</span>
+        <span class="hero-pill">Hybride</span>
     </div>
-    <h1>Moteur de Recommandation Hybride</h1>
-    <p>Systeme intelligent combinant 3 algorithmes de filtrage — base sur le contenu, collaboratif 
-    et temporel — pour proposer des experiences personnalisees a chaque utilisateur.</p>
+    <h1 class="hero-title">Découvrez la Tunisie,<br><em>à votre façon.</em></h1>
+    <p class="hero-sub">Système intelligent combinant 3 algorithmes de filtrage — basé sur le contenu, collaboratif et temporel — pour proposer des expériences personnalisées à chaque utilisateur.</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -227,11 +308,10 @@ with st.sidebar:
     selected_user  = st.selectbox("Utilisateur", df_users['iduser'].tolist(), label_visibility="collapsed")
     user_history   = df_notes[df_notes['iduser'] == selected_user]
 
-    # Couleurs fixes (Retour au design original)
     theme_color = "#3498db"
     bg_gradient = "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)"
 
-    # Injection du CSS
+    # Injection du CSS (inchangé — uniquement .hero retiré car remplacé ci-dessus)
     st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
@@ -248,17 +328,6 @@ with st.sidebar:
             backdrop-filter: blur(12px);
             border-right: 1px solid rgba(255,255,255,0.3);
         }}
-
-        .hero {{
-            background: {"linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)" if not dark_mode else "linear-gradient(135deg, #1e293b, #0f172a)"};
-            border-radius: 20px;
-            padding: 45px 50px;
-            color: white;
-            margin-bottom: 30px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        }}
-        .hero h1 {{ font-size: 2.4rem; font-weight: 800; margin: 0 0 10px 0; letter-spacing: -1px; color: white !important; }}
-        .hero p  {{ font-size: 1.05rem; opacity: 0.75; margin: 0; line-height: 1.7; color: white !important; }}
 
         .card {{
             background: {"rgba(255,255,255,0.92)" if not dark_mode else "rgba(30,41,59,0.7)"};
@@ -308,14 +377,11 @@ with st.sidebar:
     </style>
     """, unsafe_allow_html=True)
 
-
     st.markdown("---")
     st.markdown("### 📊 Historique")
     st.write(f"- **Expériences notées :** {len(user_history)}")
     if len(user_history) > 0:
         st.write(f"- **Note moyenne :** {user_history['note'].mean():.2f} / 5")
-
-
 
 
 # ── Recommandations ───────────────────────────────────────────────────────────
@@ -325,7 +391,6 @@ recos = get_hybrid(selected_user)
 
 if selected_category != "Toutes":
     recos = recos[recos['categorie'] == selected_category]
-
 
 if recos.empty:
     st.info("Pas assez de donnees pour faire une recommandation.")
@@ -366,7 +431,6 @@ else:
             <span class="rating-count">({row.nb_avis} avis)</span>
         </div>"""
 
-        # Recherche d'image ultra-robuste (ID int, ID str, ou Nom exact)
         pid = row.id
         nom = row.nompdt
         
@@ -391,9 +455,9 @@ st.markdown("### Analyse des scores par recommandation")
 
 fig = go.Figure()
 names = [r.nompdt[:22] + "…" if len(r.nompdt) > 22 else r.nompdt for r in recos.itertuples()]
-fig.add_bar(name="Contenu",      x=names, y=recos['cb_score'].round(2),   marker_color="#3498db")
-fig.add_bar(name="Collaboratif", x=names, y=recos['cf_score'].round(2),   marker_color="#9b59b6")
-fig.add_bar(name="Temporel",     x=names, y=recos['time_score'].round(2), marker_color="#e67e22")
+fig.add_bar(name="Contenu",         x=names, y=recos['cb_score'].round(2),    marker_color="#3498db")
+fig.add_bar(name="Collaboratif",    x=names, y=recos['cf_score'].round(2),    marker_color="#9b59b6")
+fig.add_bar(name="Temporel",        x=names, y=recos['time_score'].round(2),  marker_color="#e67e22")
 fig.add_bar(name="Hybride (Final)", x=names, y=recos['final_score'].round(2), marker_color="#2ecc71")
 
 fig.update_layout(
