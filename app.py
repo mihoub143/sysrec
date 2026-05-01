@@ -74,7 +74,7 @@ PRODUCT_IMAGES = {
     1: "https://images.unsplash.com/photo-1551632811-561732d1e306?auto=format&fit=crop&w=800&q=80",
     2: "https://images.unsplash.com/photo-1501555088652-021faa106b9b?auto=format&fit=crop&w=800&q=80",
     3: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23",
-    4: "https://images.unsplash.com/photo-1523987355523-c7b5b0dd90a7",
+    4: "https://idwey.tn/uploads/0000/624/2021/02/17/69466303-678030916033653-6953890590136205312-o.jpg",
     5: "https://images.unsplash.com/photo-1511497584788-876760111969",
     6: "https://images.unsplash.com/photo-1544551763-46a013bb70d5",
     7: "https://images.unsplash.com/photo-1544551763-46a013bb70d5",
@@ -83,7 +83,7 @@ PRODUCT_IMAGES = {
     10: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e",
     11: "https://images.unsplash.com/photo-1509316785289-025f5b846b35",
     12: "https://images.unsplash.com/photo-1419242902214-272b3f66ee7a",
-    13: "https://images.unsplash.com/photo-1474044159687-1ee9f3a51722",
+    13: "https://tunisie.co/uploads/images/content/tozeur-une-tc-060225.jpg",
     14: "https://images.unsplash.com/photo-1520110120835-c96a9ef9569d",
     15: "https://images.unsplash.com/photo-1525498128493-380d1990a112",
     16: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c",
@@ -317,10 +317,21 @@ with st.sidebar:
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap');
         
         html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
-        
+
+        /* Keyframes Animations */
+        @keyframes fadeInUp {{
+            from {{ opacity: 0; transform: translateY(30px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        @keyframes float {{
+            0% {{ transform: translateY(0px); }}
+            50% {{ transform: translateY(-8px); }}
+            100% {{ transform: translateY(0px); }}
+        }}
+
         .stApp {{ 
             background: {bg_gradient if not dark_mode else "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"};
-            transition: all 0.4s ease;
+            transition: background 0.5s ease;
         }}
 
         [data-testid="stSidebar"] {{
@@ -329,15 +340,29 @@ with st.sidebar:
             border-right: 1px solid rgba(255,255,255,0.3);
         }}
 
+        /* Application de float aux pilules du hero si présentes */
+        .hero-pill {{ animation: float 3s ease-in-out infinite; }}
+        .hero-banner {{ animation: fadeInUp 0.8s ease-out; }}
+
         .card {{
             background: {"rgba(255,255,255,0.92)" if not dark_mode else "rgba(30,41,59,0.7)"};
             padding: 22px;
-            border-radius: 16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.07), inset 0 0 0 1px rgba(255,255,255,0.6);
+            border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.07);
             backdrop-filter: blur(5px);
             margin-bottom: 20px;
             border-top: 5px solid {theme_color if not dark_mode else "#38bdf8"};
             color: {"#1e293b" if not dark_mode else "#f1f5f9"};
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: fadeInUp 0.6s ease-out backwards;
+            border-left: 1px solid rgba(255,255,255,0.1);
+            border-right: 1px solid rgba(255,255,255,0.1);
+        }}
+        .card:hover {{ 
+            transform: scale(1.03) translateY(-10px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border-top: 5px solid #e74c3c;
+            background: {"rgba(255,255,255,1.0)" if not dark_mode else "rgba(30,41,59,0.9)"};
         }}
 
         .tag {{
@@ -350,7 +375,9 @@ with st.sidebar:
             display: inline-block;
             margin-right: 4px;
             margin-bottom: 6px;
+            transition: all 0.3s ease;
         }}
+        .tag:hover {{ transform: translateY(-2px); filter: brightness(1.1); }}
 
         .stat-box {{
             background: {"rgba(255,255,255,0.85)" if not dark_mode else "rgba(30,41,59,0.5)"};
@@ -359,21 +386,45 @@ with st.sidebar:
             text-align: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.06);
             color: {"#0f3460" if not dark_mode else "#f8fafc"};
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255,255,255,0.05);
         }}
-        .stat-box .num {{ color: {theme_color if not dark_mode else "#38bdf8"}; font-size: 2rem; font-weight: 800; }}
+        .stat-box:hover {{ transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0,0,0,0.1); }}
+        .stat-box .num {{ color: {theme_color if not dark_mode else "#38bdf8"}; font-size: 2.2rem; font-weight: 800; }}
 
         .explanation {{
             background: {"rgba(52,152,219,0.08)" if not dark_mode else "rgba(255,255,255,0.05)"};
             border-left: 4px solid {theme_color if not dark_mode else "#38bdf8"};
-            padding: 9px 12px;
-            border-radius: 6px;
+            padding: 12px 15px;
+            border-radius: 8px;
             color: {"#2471a3" if not dark_mode else "#38bdf8"};
             font-size: 0.82rem;
             font-weight: 600;
             margin-top: 12px;
+            transition: background 0.3s ease;
         }}
+
+        .score-bar-label {{ font-size: 0.75rem; color: #888; margin-bottom: 2px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }}
+        .score-bar-wrap {{ background: rgba(0,0,0,0.05); border-radius: 10px; height: 8px; margin-bottom: 10px; overflow: hidden; }}
+        .score-bar-fill {{ height: 8px; border-radius: 10px; transition: width 1s cubic-bezier(0.65, 0, 0.35, 1); }}
+
+        .rating-stars {{ color: #f1c40f; font-size: 1.1rem; margin-right: 5px; }}
+        .rating-value {{ font-weight: 700; color: {"#1a1a2e" if not dark_mode else "#f8fafc"}; font-size: 0.95rem; }}
+        .rating-count {{ color: #888; font-size: 0.8rem; margin-left: 4px; }}
+        .rating-container {{ margin-bottom: 12px; display: flex; align-items: center; }}
+
+        .card-img {{
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            border-radius: 14px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            transition: transform 0.5s ease;
+        }}
+        .card:hover .card-img {{ transform: scale(1.05); }}
         
-        h3, h4 {{ color: {"#1a1a2e" if not dark_mode else "#f8fafc"} !important; }}
+        h3, h4 {{ color: {"#1a1a2e" if not dark_mode else "#f8fafc"} !important; font-weight: 800; }}
     </style>
     """, unsafe_allow_html=True)
 
