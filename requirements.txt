@@ -7,3 +7,5 @@ seaborn
 psycopg2-binary
 nltk
 plotly
+folium
+streamlit-folium
