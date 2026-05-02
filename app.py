@@ -9,6 +9,8 @@ import plotly.graph_objects as go
 import plotly.express as px
 from nltk.stem.snowball import FrenchStemmer
 from nltk.corpus import stopwords
+import folium
+from streamlit_folium import st_folium
 
 # ==========================================
 # 1. INITIALISATION & CONFIGURATION
@@ -352,19 +354,89 @@ def inject_styles(dark_mode):
 # 5. COMPOSANTS UI
 # ==========================================
 
-def display_hero():
-    st.markdown("""
-    <div class="hero-banner">
-        <div class="hero-eyebrow">
-            <span class="hero-pill">Content-Based</span>
-            <span class="hero-pill">Collaboratif</span>
-            <span class="hero-pill">Time-Aware</span>
-            <span class="hero-pill">Hybride</span>
+import streamlit.components.v1 as components
+
+def display_hero(dark_mode):
+    bg_gradient = "linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)" if not dark_mode else "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"
+    
+    html_str = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@300;400;600;800&family=Amiri:wght@400;700&display=swap');
+            
+            * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+            body {{ overflow: hidden; font-family: 'Inter', sans-serif; background: transparent; }}
+            
+            .hero-banner {{
+                position: relative;
+                background: {bg_gradient};
+                border-radius: 24px;
+                padding: 52px 56px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                color: #fff;
+                height: 350px;
+                box-sizing: border-box;
+                overflow: hidden;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+                animation: fadeInUp 0.8s ease-out;
+            }}
+            .hero-banner::after {{
+                content: 'تونس';
+                position: absolute; right: 50px; top: 50%; transform: translateY(-50%);
+                font-family: 'Amiri', serif; font-size: 14rem;
+                color: rgba(93, 173, 226, 0.08); direction: rtl;
+                text-shadow: 0 0 10px rgba(93,173,226,0.2), 0 0 25px rgba(93,173,226,0.1);
+                pointer-events: none;
+                z-index: 1;
+            }}
+            .hero-content {{
+                flex: 1;
+                z-index: 10;
+            }}
+            .hero-eyebrow {{ margin-bottom: 15px; }}
+            .hero-pill {{
+                background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14);
+                color: rgba(255,255,255,0.70); padding: 4px 14px; border-radius: 100px;
+                font-size: 0.72rem; font-weight: 500; text-transform: uppercase;
+                font-family: 'DM Sans', sans-serif; display: inline-block; margin-right: 8px;
+            }}
+            .hero-title {{
+                font-family: 'DM Serif Display', serif; font-size: 2.6rem;
+                color: #5dade2; line-height: 1.15; margin: 0 0 14px 0;
+            }}
+            .hero-title em {{ font-style: italic; color: #5dade2; }}
+            .hero-sub {{
+                color: rgba(255,255,255,0.52); font-size: 0.95rem; font-weight: 300; line-height: 1.75;
+                max-width: 540px; margin: 0; font-family: 'DM Sans', sans-serif;
+            }}
+            
+            @keyframes fadeInUp {{ from {{ opacity: 0; transform: translateY(30px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+        </style>
+    </head>
+    <body>
+        <div class="hero-banner">
+            <div class="hero-content">
+                <div class="hero-eyebrow">
+                    <span class="hero-pill">Content-Based</span>
+                    <span class="hero-pill">Collaboratif</span>
+                    <span class="hero-pill">Time-Aware</span>
+                    <span class="hero-pill">Hybride</span>
+                </div>
+                <h1 class="hero-title">Découvrez la Tunisie,<br><em>à votre façon.</em></h1>
+                <p class="hero-sub">Système intelligent combinant 4 algorithmes de filtrage — basé sur le contenu, collaboratif et temporel — pour proposer des expériences personnalisées.</p>
+            </div>
         </div>
-        <h1 class="hero-title">Découvrez la Tunisie,<br><em>à votre façon.</em></h1>
-        <p class="hero-sub">Système intelligent combinant 4 algorithmes de filtrage — basé sur le contenu, collaboratif et temporel — pour proposer des expériences personnalisées.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    </body>
+    </html>
+    """
+    
+    components.html(html_str, height=360)
+
+# The display_hero definition was moved up and modified
 
 def display_stats():
     c1, c2, c3, c4 = st.columns(4)
@@ -411,6 +483,30 @@ PRODUCT_IMAGES = {
     20: "https://alpinemag.fr/wp-content/uploads/2023/11/BE23_Highway-to-Harr-26.jpeg",
 }
 
+# COORDONNÉES DES PRODUITS POUR LA CARTE FOLIUM
+PRODUCT_COORDS = {
+    1: [36.71, 10.36],  # Mont Boukornine
+    2: [35.20, 8.68],   # Kasserine Mountains (Chambi)
+    3: [36.37, 10.10],  # Djebel Zaghouan
+    4: [36.77, 8.68],   # Aïn Draham
+    5: [36.72, 9.18],   # Forêts de Béja
+    6: [36.87, 10.34],  # Sidi Bou Saïd
+    7: [36.95, 8.75],   # Tabarka
+    8: [35.83, 10.63],  # Sousse
+    9: [33.88, 10.87],  # Djerba
+    10: [36.41, 10.61], # Hammamet
+    11: [33.46, 9.02],  # Douz
+    12: [32.98, 9.63],  # Ksar Ghilane
+    13: [33.91, 8.13],  # Tozeur
+    14: [33.46, 9.02],  # Quad Douz
+    15: [36.45, 10.73], # Nabeul
+    16: [36.80, 10.17], # Tunis
+    17: [36.85, 10.32], # Carthage
+    18: [35.83, 10.63], # Cuisine Sousse
+    19: [33.55, 9.97],  # Matmata
+    20: [36.60, 10.33]  # Djebel Ressas
+}
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.markdown("## Configuration")
@@ -450,7 +546,7 @@ with st.sidebar:
         st.write(f"Note moyenne : **{user_history['note'].mean():.2f} / 5**")
 
 # --- PAGE PRINCIPALE ---
-display_hero()
+display_hero(dark_mode)
 display_stats()
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -516,6 +612,35 @@ else:
                 </div>
                 <div class="explanation">{explication}</div>
             </div>""", unsafe_allow_html=True)
+
+    # --- CARTE INTERACTIVE FOLIUM ---
+    st.markdown("---")
+    st.markdown("### Carte Interactive des Recommandations")
+    
+    # Création de la carte centrée sur la Tunisie
+    m = folium.Map(location=[34.0, 9.5], zoom_start=6, tiles="CartoDB positron" if not dark_mode else "CartoDB dark_matter")
+    
+    # Ajout des marqueurs pour les recommandations
+    for idx, row in enumerate(recos.itertuples()):
+        coords = PRODUCT_COORDS.get(int(row.id))
+        if coords:
+            # Code couleur en fonction du score le plus fort
+            if row.cb_score >= row.cf_score and row.cb_score >= row.time_score:
+                marker_color = "blue"
+            elif row.cf_score >= row.cb_score and row.cf_score >= row.time_score:
+                marker_color = "purple"
+            else:
+                marker_color = "orange"
+                
+            popup_html = f"<b>{row.nompdt}</b><br>Score: {row.final_score*100:.1f}%<br>Catégorie: {row.categorie}"
+            folium.Marker(
+                location=coords,
+                popup=folium.Popup(popup_html, max_width=250),
+                tooltip=row.nompdt,
+                icon=folium.Icon(color=marker_color, icon="info-sign")
+            ).add_to(m)
+
+    st_folium(m, width="100%", height=400, returned_objects=[])
 
 # --- ANALYSE TECHNIQUE ---
 col_tech, col_eval = st.columns([2, 1])
