@@ -45,7 +45,11 @@ DATABASE_URL = os.environ.get(
 )
 
 # --- GEMINI CHATBOT CONFIG ---
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyC0AK4QYeq1diNJFYfl3CESXU2D-Dn3sNY")
+# NE JAMAIS ÉCRIRE LA CLÉ EN DUR ICI (Google la désactivera s'il la voit sur GitHub)
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not GEMINI_API_KEY and "GEMINI_API_KEY" in st.secrets:
+    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+
 DEFAULT_GEMINI_KEY = GEMINI_API_KEY
 
 CHATBOT_SYSTEM_PROMPT = """Tu es Emna, un assistant de voyage passionné et expert en Tunisie.
