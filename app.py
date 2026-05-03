@@ -5,7 +5,10 @@ import psycopg2
 import nltk
 import base64
 import os
+import google.generativeai as genai
+from dotenv import load_dotenv
 import plotly.graph_objects as go
+load_dotenv()
 import plotly.express as px
 from nltk.stem.snowball import FrenchStemmer
 from nltk.corpus import stopwords
@@ -40,6 +43,21 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://sr_j833_user:WXMnVS2PVorml3YjLDz9LhWRZ6VHgemr@dpg-d7pl468js32c73dva8k0-a.oregon-postgres.render.com:5432/sr_j833"
 )
+
+# --- GEMINI CHATBOT CONFIG ---
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyC0AK4QYeq1diNJFYfl3CESXU2D-Dn3sNY")
+DEFAULT_GEMINI_KEY = GEMINI_API_KEY
+
+CHATBOT_SYSTEM_PROMPT = """Tu es Emna, un assistant de voyage passionné et expert en Tunisie.
+Tu fais partie d'un système intelligent de recommandation qui utilise 4 algorithmes:
+- Content-Based Filtering: basé sur les descriptions des produits
+- Filtrage Collaboratif (KNN): basé sur les utilisateurs similaires
+- Time-Aware Filtering: pondéré par la récence et la saison
+- Score Hybride: combinaison (CB 40% / CF 40% / TA 20%)
+Destinations: Sidi Bou Saïd, Tabarka, Djerba, Hammamet, Sousse, Tozeur, Douz, Carthage, Nabeul, Matmata.
+Catégories: Randonnée, Plage, Désert, Culture, Gastronomie, Sports nautiques, Trekking.
+Réponds TOUJOURS en français. Sois chaleureux, enthousiaste et professionnel.
+Limite tes réponses à 120 mots maximum."""
 
 # ==========================================
 # 2. ACCÈS AUX DONNÉES (DAL)
@@ -202,6 +220,54 @@ def analyze_user_profile(user_id):
     return profile
 
 # ==========================================
+# 3.5 CHATBOT GEMINI
+# ==========================================
+
+def init_gemini_chat(api_key):
+    """Initialise la session Gemini avec une clé spécifique."""
+    if not api_key or len(api_key) < 10:
+        return None
+    try:
+        genai.configure(api_key=api_key)
+        # On utilise gemini-flash-latest (confirmé disponible)
+        model = genai.GenerativeModel(
+            model_name='gemini-flash-latest',
+            system_instruction=CHATBOT_SYSTEM_PROMPT
+        )
+        return model.start_chat(history=[])
+    except Exception as e:
+        # Fallback sur gemini-pro-latest si flash n'est pas dispo
+        try:
+            model = genai.GenerativeModel(model_name='gemini-pro-latest')
+            return model.start_chat(history=[])
+        except:
+            st.sidebar.error(f"Erreur d'initialisation : {e}")
+            return None
+
+def get_gemini_response(user_message, api_key):
+    """Envoie un message à Gemini de la manière la plus directe possible."""
+    try:
+        clean_key = api_key.strip()
+        
+        # ON FORCE LA SUPPRESSION DES VARIABLES SYSTEME QUI PEUVENT POLLUER
+        if "GOOGLE_API_KEY" in os.environ: del os.environ["GOOGLE_API_KEY"]
+        if "GEMINI_API_KEY" in os.environ: del os.environ["GEMINI_API_KEY"]
+        
+        # On configure avec la clé propre
+        genai.configure(api_key=clean_key)
+        
+        # On recrée le modèle
+        model = genai.GenerativeModel(
+            model_name='gemini-flash-latest',
+            system_instruction=CHATBOT_SYSTEM_PROMPT
+        )
+        
+        response = model.generate_content(user_message)
+        return response.text
+    except Exception as e:
+        return f"🚨 Erreur : {str(e)}"
+
+# ==========================================
 # 4. DESIGN & STYLES (CSS)
 # ==========================================
 
@@ -209,31 +275,38 @@ def inject_styles(dark_mode):
     bg_gradient = "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)"
     theme_blue  = "#5dade2"
     
-    st.markdown(f"""
+    # Correction SyntaxError : on utilise format() pour éviter que Python n'interprète les unités CSS (30px, 0%, etc)
+    css_template = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&family=Inter:wght@300;400;600;800&family=Amiri:wght@400;700&display=swap');
         
         html, body, [class*="css"] {{ font-family: 'Inter', sans-serif; }}
 
         /* --- Animations --- */
-        @keyframes fadeInUp {{ from {{ opacity: 0; transform: translateY(30px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-        @keyframes float {{ 0% {{ transform: translateY(0px); }} 50% {{ transform: translateY(-8px); }} 100% {{ transform: translateY(0px); }} }}
+        @keyframes fadeInUp {{ 
+            from {{ opacity: 0; transform: translateY(30px); }} 
+            to {{ opacity: 1; transform: translateY(0); }} 
+        }}
+        @keyframes float {{ 
+            0% {{ transform: translateY(0px); }} 
+            50% {{ transform: translateY(-8px); }} 
+            100% {{ transform: translateY(0px); }} 
+        }}
 
         .stApp {{ 
-            background: {bg_gradient if not dark_mode else "radial-gradient(circle at top right, #1e293b, #0f172a)"};
-            color: {"#1e293b" if not dark_mode else "#f8fafc"};
+            background: {bg};
+            color: {color};
             transition: background 0.5s ease;
         }}
 
         [data-testid="stSidebar"] {{
-            background: {"rgba(255,255,255,0.55)" if not dark_mode else "rgba(15,23,42,0.8)"} !important;
+            background: {sidebar_bg} !important;
             backdrop-filter: blur(12px);
             border-right: 1px solid rgba(255,255,255,0.1);
         }}
 
-        /* --- Radar Profile Container --- */
         .profile-container {{
-            background: {"rgba(255,255,255,0.4)" if not dark_mode else "rgba(30,41,59,0.4)"};
+            background: {profile_bg};
             border-radius: 16px;
             padding: 15px;
             margin-top: 20px;
@@ -242,10 +315,9 @@ def inject_styles(dark_mode):
             animation: fadeInUp 0.8s ease-out;
         }}
 
-        /* --- Hero Banner --- */
         .hero-banner {{
             position: relative;
-            background: {"linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)" if not dark_mode else "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)"};
+            background: {hero_bg};
             border-radius: 24px;
             padding: 52px 56px;
             margin-bottom: 40px;
@@ -270,30 +342,29 @@ def inject_styles(dark_mode):
         }}
         .hero-title {{
             font-family: 'DM Serif Display', serif; font-size: 2.6rem;
-            color: {theme_blue} !important; line-height: 1.15; margin: 0 0 14px 0; position: relative;
+            color: {blue} !important; line-height: 1.15; margin: 0 0 14px 0; position: relative;
         }}
-        .hero-title em {{ font-style: italic; color: {theme_blue} !important; }}
+        .hero-title em {{ font-style: italic; color: {blue} !important; }}
         .hero-sub {{
             color: rgba(255,255,255,0.52); font-size: 0.95rem; font-weight: 300; line-height: 1.75;
             max-width: 540px; margin: 0; position: relative; font-family: 'DM Sans', sans-serif;
         }}
 
-        /* --- Cartes de Recommandation --- */
         .card {{
-            background: {"rgba(255,255,255,0.92)" if not dark_mode else "rgba(30,41,59,0.7)"};
+            background: {card_bg};
             padding: 24px; border-radius: 20px;
             box-shadow: 0 8px 25px rgba(0,0,0,0.05);
             backdrop-filter: blur(10px);
             margin-bottom: 25px;
             border: 1px solid rgba(255,255,255,0.1);
-            border-top: 5px solid {theme_blue};
+            border-top: 5px solid {blue};
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             animation: fadeInUp 0.6s ease-out backwards;
-            color: {"#1e293b" if not dark_mode else "#f1f5f9"};
+            color: {text_color};
         }}
         .card:hover {{ 
             transform: scale(1.03) translateY(-10px);
-            background: {"rgba(255,255,255,1.0)" if not dark_mode else "rgba(30,41,59,0.9)"};
+            background: {card_hover_bg};
             box-shadow: 0 20px 40px rgba(0,0,0,0.2);
             border-top: 5px solid #e74c3c;
         }}
@@ -305,50 +376,88 @@ def inject_styles(dark_mode):
         .card:hover .card-img {{ transform: scale(1.04); }}
         
         .tag {{
-            background: {"linear-gradient(135deg, #3498db, #2980b9)" if not dark_mode else "rgba(56,189,248,0.1)"};
-            color: {"white" if not dark_mode else "#38bdf8"} !important;
+            background: {tag_bg};
+            color: {tag_text} !important;
             padding: 4px 11px; border-radius: 20px;
             font-size: 0.72rem; font-weight: 700; display: inline-block;
             margin-right: 6px; margin-bottom: 8px; transition: all 0.3s ease;
         }}
         .tag:hover {{ transform: translateY(-2px); filter: brightness(1.1); }}
 
-        /* --- Progress Bars & Ratings --- */
         .score-bar-label {{ font-size: 0.72rem; color: #94a3b8; margin-bottom: 4px; font-weight: 700; text-transform: uppercase; }}
         .score-bar-wrap {{ background: rgba(0,0,0,0.1); border-radius: 10px; height: 8px; margin-bottom: 10px; overflow: hidden; }}
         .score-bar-fill {{ height: 8px; border-radius: 10px; transition: width 1s ease-in-out; }}
         
         .rating-stars {{ color: #fbbf24; font-size: 1.1rem; margin-right: 6px; }}
-        .rating-value {{ font-weight: 800; color: {"#1e293b" if not dark_mode else "#f8fafc"}; font-size: 0.95rem; }}
+        .rating-value {{ font-weight: 800; color: {rating_color}; font-size: 0.95rem; }}
         
         .explanation {{
-            background: {"rgba(52,152,219,0.08)" if not dark_mode else "rgba(56,189,248,0.1)"};
-            border-left: 4px solid {theme_blue};
+            background: {expl_bg};
+            border-left: 4px solid {blue};
             padding: 12px 15px; border-radius: 8px;
-            color: {"#2471a3" if not dark_mode else "#38bdf8"};
+            color: {expl_text};
             font-size: 0.85rem; font-weight: 600; margin-top: 15px;
         }}
 
-        /* --- Stats Box --- */
         .stat-box {{
-            background: {"rgba(255,255,255,0.85)" if not dark_mode else "rgba(30,41,59,0.5)"};
+            background: {stat_bg};
             border-radius: 18px; padding: 22px; text-align: center;
             box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-            color: {"#0f172a" if not dark_mode else "#f8fafc"};
+            color: {stat_text};
             transition: all 0.3s ease;
         }}
         .stat-box:hover {{ transform: translateY(-5px); }}
-        .stat-box .num {{ color: {theme_blue}; font-size: 2.2rem; font-weight: 800; }}
+        .stat-box .num {{ color: {blue}; font-size: 2.2rem; font-weight: 800; }}
         .stat-box .lbl {{ color: #94a3b8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }}
 
-        /* Custom Toggle Color (Navy Blue when active) */
-        div[data-testid="stToggle"] > div:first-child[aria-checked="true"] {{
-            background-color: #1e3a8a !important;
-        }}
+        h3, h4 {{ color: {header_color} !important; font-weight: 800; }}
 
-        h3, h4 {{ color: {"#1e293b" if not dark_mode else "#f8fafc"} !important; font-weight: 800; }}
+        /* --- Floating Chat Button --- */
+        @keyframes chatPulse {{
+            0%   {{ box-shadow: 0 4px 20px rgba(93,173,226,0.5), 0 0 0 0 rgba(93,173,226,0.5); }}
+            70%  {{ box-shadow: 0 4px 20px rgba(93,173,226,0.5), 0 0 0 14px rgba(93,173,226,0); }}
+            100% {{ box-shadow: 0 4px 20px rgba(93,173,226,0.5), 0 0 0 0 rgba(93,173,226,0); }}
+        }}
+        .chat-fab {{
+            position: fixed; bottom: 28px; right: 28px;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: linear-gradient(135deg, #5dade2, #1a6fa8);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.5rem; cursor: pointer; z-index: 9999;
+            animation: chatPulse 2.5s ease-in-out infinite;
+            text-decoration: none;
+        }}
+        .chat-fab-label {{
+            position: fixed; bottom: 95px; right: 20px;
+            background: rgba(15,23,42,0.85); color: #5dade2;
+            padding: 5px 12px; border-radius: 20px;
+            font-size: 0.75rem; font-weight: 600; z-index: 9999;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(93,173,226,0.3);
+        }}
+        .stChatMessage {{ border-radius: 14px !important; }}
     </style>
-    """, unsafe_allow_html=True)
+    """
+    
+    st.markdown(css_template.format(
+        bg=bg_gradient if not dark_mode else "radial-gradient(circle at top right, #1e293b, #0f172a)",
+        color="#1e293b" if not dark_mode else "#f8fafc",
+        sidebar_bg="rgba(255,255,255,0.55)" if not dark_mode else "rgba(15,23,42,0.8)",
+        profile_bg="rgba(255,255,255,0.4)" if not dark_mode else "rgba(30,41,59,0.4)",
+        hero_bg="linear-gradient(135deg, #1a1a2e, #16213e, #0f3460)" if not dark_mode else "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+        blue=theme_blue,
+        card_bg="rgba(255,255,255,0.92)" if not dark_mode else "rgba(30,41,59,0.7)",
+        card_hover_bg="rgba(255,255,255,1.0)" if not dark_mode else "rgba(30,41,59,0.9)",
+        text_color="#1e293b" if not dark_mode else "#f1f5f9",
+        tag_bg="linear-gradient(135deg, #3498db, #2980b9)" if not dark_mode else "rgba(56,189,248,0.1)",
+        tag_text="white" if not dark_mode else "#38bdf8",
+        rating_color="#1e293b" if not dark_mode else "#f8fafc",
+        expl_bg="rgba(52,152,219,0.08)" if not dark_mode else "rgba(56,189,248,0.1)",
+        expl_text="#2471a3" if not dark_mode else "#38bdf8",
+        stat_bg="rgba(255,255,255,0.85)" if not dark_mode else "rgba(30,41,59,0.5)",
+        stat_text="#0f172a" if not dark_mode else "#f8fafc",
+        header_color="#1e293b" if not dark_mode else "#f8fafc"
+    ), unsafe_allow_html=True)
 
 # ==========================================
 # 5. COMPOSANTS UI
@@ -508,10 +617,28 @@ PRODUCT_COORDS = {
 }
 
 # --- SIDEBAR ---
+# --- INIT CHATBOT SESSION STATE ---
+if "chat_messages" not in st.session_state:
+    st.session_state.chat_messages = []
+
 with st.sidebar:
     st.markdown("## Configuration")
     dark_mode = st.toggle("Mode Sombre Premium", value=False)
     inject_styles(dark_mode)
+
+    # --- CONFIGURATION CLE API ---
+    st.markdown("---")
+    st.markdown("### 🔑 Chatbot AI")
+    user_api_key = st.text_input("Clé API Gemini", value=DEFAULT_GEMINI_KEY, type="password")
+    
+    if "current_api_key" not in st.session_state or st.session_state.current_api_key is None:
+        st.session_state.current_api_key = user_api_key
+
+    # Si la clé change, on réinitialise la session
+    if user_api_key != st.session_state.current_api_key:
+        st.session_state.current_api_key = user_api_key
+        st.session_state.gemini_session = None
+        st.rerun()
     
     st.markdown("---")
     st.markdown("## Session Utilisateur")
@@ -540,12 +667,50 @@ with st.sidebar:
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("### Historique")
-    st.write(f"Expériences notées : **{len(user_history)}**")
+    # --- CHATBOT UI SIDEBAR ---
+    st.markdown("---")
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#1a1a2e,#0f3460);border-radius:14px;
+                padding:14px 18px;margin-bottom:10px;border:1px solid rgba(93,173,226,0.3);">
+        <div style="display:flex;align-items:center;gap:12px;">
+            <div style="width:42px;height:42px;background:linear-gradient(135deg,#5dade2,#2980b9);
+                        border-radius:50%;display:flex;align-items:center;justify-content:center;
+                        font-size:1.3rem;flex-shrink:0;">🤖</div>
+            <div>
+                <div style="color:#5dade2;font-weight:700;font-size:0.9rem;">Tarek — Assistant IA</div>
+                <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;">Expert Voyages Tunisie • Gemini</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.button("🔄 Réinitialiser la session chat"):
+        st.session_state.gemini_session = None
+        st.session_state.chat_messages = []
+        st.rerun()
+
+    # Afficher l'historique du chat
+    for msg in st.session_state.chat_messages[-8:]:
+        with st.chat_message(msg["role"], avatar="👤" if msg["role"] == "user" else "🤖"):
+            st.markdown(msg["content"])
+
+    # Input du chat
+    if prompt := st.chat_input("Demandez-moi sur la Tunisie...", key="gemini_chat"):
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        with st.spinner("Emna réfléchit..."):
+            reply = get_gemini_response(prompt, st.session_state.current_api_key)
+        st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+        st.rerun()
     if len(user_history) > 0:
         st.write(f"Note moyenne : **{user_history['note'].mean():.2f} / 5**")
 
 # --- PAGE PRINCIPALE ---
+# Bouton flottant du chatbot
+st.markdown("""
+<div class="chat-fab-label">💬 Demandez à Tarek</div>
+<div class="chat-fab">🤖</div>
+""", unsafe_allow_html=True)
+
 display_hero(dark_mode)
 display_stats()
 
