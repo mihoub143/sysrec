@@ -9,3 +9,5 @@ nltk
 plotly
 folium
 streamlit-folium
+google-generativeai
+python-dotenv
